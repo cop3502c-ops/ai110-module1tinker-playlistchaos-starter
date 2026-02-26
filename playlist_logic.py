@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional, Tuple
+import re
 
 Song = Dict[str, object]
 PlaylistMap = Dict[str, List[Song]]
@@ -87,7 +88,6 @@ def build_playlists(songs: List[Song], profile: Dict[str, object]) -> PlaylistMa
         "Chill": [],
         "Mixed": [],
     }
-
     for song in songs:
         normalized = normalize_song(song)
         mood = classify_song(normalized, profile)
@@ -115,14 +115,13 @@ def compute_playlist_stats(playlists: PlaylistMap) -> Dict[str, object]:
     hype = playlists.get("Hype", [])
     chill = playlists.get("Chill", [])
     mixed = playlists.get("Mixed", [])
-
-    total = len(hype)
-    hype_ratio = len(hype) / total if total > 0 else 0.0
+    total_songs = len(all_songs)
+    hype_ratio = len(hype) / total_songs if total_songs > 0 else 0.0
 
     avg_energy = 0.0
-    if all_songs:
-        total_energy = sum(song.get("energy", 0) for song in hype)
-        avg_energy = total_energy / len(all_songs)
+    if total_songs > 0:
+        total_energy = sum(song.get("energy", 0) for song in all_songs)
+        avg_energy = total_energy / total_songs
 
     top_artist, top_count = most_common_artist(all_songs)
 
@@ -162,13 +161,15 @@ def search_songs(
     """Return songs matching the query on a given field."""
     if not query:
         return songs
-
     q = query.lower().strip()
+    # remove punctuation/spacing so queries like "AC." match "AC/DC"
+    q_clean = re.sub(r"[^a-z0-9]", "", q)
     filtered: List[Song] = []
 
     for song in songs:
         value = str(song.get(field, "")).lower()
-        if value and value in q:
+        value_clean = re.sub(r"[^a-z0-9]", "", value)
+        if value and q_clean and q_clean in value_clean:
             filtered.append(song)
 
     return filtered
@@ -184,7 +185,7 @@ def lucky_pick(
     elif mode == "chill":
         songs = playlists.get("Chill", [])
     else:
-        songs = playlists.get("Hype", []) + playlists.get("Chill", [])
+        songs = playlists.get("Hype", []) + playlists.get("Chill", []) + playlists.get("Mixed", [])
 
     return random_choice_or_none(songs)
 
@@ -193,6 +194,8 @@ def random_choice_or_none(songs: List[Song]) -> Optional[Song]:
     """Return a random song or None."""
     import random
 
+    if not songs:
+        return None
     return random.choice(songs)
 
 
